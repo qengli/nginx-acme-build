@@ -101,9 +101,6 @@ jobs:
           - os_name: Ubuntu 22.04 (Jammy)
             os_tag: '22.04'
             os_family: 'ubuntu'
-          - os_name: Ubuntu 24.04 (Noble)
-            os_tag: '24.04'
-            os_family: 'ubuntu'
 
     # Use the matrix variable to select the correct Docker container.
     container: ${{ matrix.os_family }}:${{ matrix.os_tag }}
