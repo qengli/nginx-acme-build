@@ -78,34 +78,56 @@ jobs:
           fi
 
   # This job builds the NGINX binary and the ACME module for different
-  # Debian versions in parallel using a matrix strategy.
-  build-debian:
+  # Debian and Ubuntu versions in parallel using a matrix strategy.
+  build-packages:
     name: Build for ${{ matrix.os_name }}
     needs: check-for-new-version
     if: needs.check-for-new-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
-    # Define the matrix to run this job for each specified Debian version.
+    # Define the matrix to run this job for each specified Debian and Ubuntu version.
     strategy:
       matrix:
         include:
           - os_name: Debian 11 (Bullseye)
             os_tag: '11'
+            os_family: 'debian'
           - os_name: Debian 12 (Bookworm)
             os_tag: '12'
+            os_family: 'debian'
+          - os_name: Ubuntu 20.04 (Focal)
+            os_tag: '20.04'
+            os_family: 'ubuntu'
+          - os_name: Ubuntu 22.04 (Jammy)
+            os_tag: '22.04'
+            os_family: 'ubuntu'
+          - os_name: Ubuntu 24.04 (Noble)
+            os_tag: '24.04'
+            os_family: 'ubuntu'
 
     # Use the matrix variable to select the correct Docker container.
-    container: debian:${{ matrix.os_tag }}
+    container: ${{ matrix.os_family }}:${{ matrix.os_tag }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Install Build Dependencies
         run: |
-          apt-get update
-          # Install libssl-dev for dynamic linking against the system's OpenSSL.
-          apt-get install -y --no-install-recommends \
-            build-essential libclang-dev pkg-config libpcre2-dev zlib1g-dev libssl-dev \
+          # 输出当前构建的操作系统信息
+          echo "Building for ${{ matrix.os_family }} ${{ matrix.os_tag }} (${{ matrix.os_name }})"
+          
+          # 更新软件包列表
+          DEBIAN_FRONTEND=noninteractive apt-get update -y
+          
+          # 根据不同版本选择合适的PCRE库
+          PCRE_PACKAGE="libpcre2-dev"
+          if [ "${{ matrix.os_tag }}" = "20.04" ]; then
+            PCRE_PACKAGE="libpcre3-dev"
+          fi
+          
+          # 安装构建依赖（使用非交互式模式避免时区配置等交互问题）
+          DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none TZ=UTC apt-get install -y --no-install-recommends \
+            build-essential libclang-dev pkg-config ${PCRE_PACKAGE} zlib1g-dev libssl-dev \
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libperl-dev \
             wget git curl ca-certificates jq
 
@@ -157,6 +179,7 @@ jobs:
         env:
           NGINX_VERSION: ${{ needs.check-for-new-version.outputs.version }}
           OS_TAG: ${{ matrix.os_tag }}
+          OS_FAMILY: ${{ matrix.os_family }}
         run: |
           SOURCE_DIR="nginx-$NGINX_VERSION"
           MODULE_PATH="$SOURCE_DIR/objs/ngx_http_acme_module.so"
@@ -207,7 +230,7 @@ jobs:
           EOF
 
           # Use the matrix variable to create a uniquely named archive.
-          ARTIFACT_NAME="nginx-${NGINX_VERSION}-acme-debian${OS_TAG}.tar.gz"
+          ARTIFACT_NAME="nginx-${NGINX_VERSION}-acme-${OS_FAMILY}${OS_TAG}.tar.gz"
           tar -czf "$ARTIFACT_NAME" "$PACKAGE_BASE_DIR"
 
           ARTIFACT_DIR=artifact
@@ -219,14 +242,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           # Use a unique name for the artifact to prevent conflicts between matrix jobs.
-          name: nginx-package-debian${{ matrix.os_tag }}
+          name: nginx-package-${{ matrix.os_family }}${{ matrix.os_tag }}
           path: artifact/
 
   # This job runs only after all matrix build jobs have succeeded. It collects
   # all the generated packages and publishes them to a single GitHub Release.
   create-release:
     name: Create GitHub Release
-    needs: [check-for-new-version, build-debian]
+    needs: [check-for-new-version, build-packages]
     if: needs.check-for-new-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
