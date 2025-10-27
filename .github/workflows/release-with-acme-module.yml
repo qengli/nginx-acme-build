@@ -89,7 +89,7 @@ jobs:
     
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v2  # 使用较旧版本的action以确保兼容性
+        uses: actions/checkout@v4
         
       - name: Install Build Dependencies with Compatibility
         run: |
@@ -200,7 +200,7 @@ jobs:
           sha256sum "$ARTIFACT_DIR/$ARTIFACT_NAME" > "$ARTIFACT_DIR/$ARTIFACT_NAME.sha256"
           
       - name: Upload Ubuntu 16.04 Compatibility Artifact
-        uses: actions/upload-artifact@v2  # 使用较旧版本的action
+        uses: actions/upload-artifact@v4
         with:
           name: nginx-package-ubuntu16.04-compat
           path: artifact/
