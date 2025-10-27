@@ -101,9 +101,6 @@ jobs:
           - os_name: Debian 12 (Bookworm)
             os_tag: '12'
             os_family: 'debian'
-          - os_name: Ubuntu 18.04 (Bionic)
-            os_tag: '18.04'
-            os_family: 'ubuntu'
           - os_name: Ubuntu 20.04 (Focal)
             os_tag: '20.04'
             os_family: 'ubuntu'
