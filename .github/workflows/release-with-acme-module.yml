@@ -77,40 +77,6 @@ jobs:
             echo "version=$LATEST_STABLE" >> "$GITHUB_OUTPUT"
           fi
 
-  # This job builds the NGINX binary and the ACME module for different
-  # Debian and Ubuntu versions in parallel using a matrix strategy.
-  build-packages:
-    name: Build for ${{ matrix.os_name }}
-    needs: check-for-new-version
-    if: needs.check-for-new-version.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-
-    # Define the matrix to run this job for each specified Debian and Ubuntu version.
-    strategy:
-      matrix:
-        include:
-          - os_name: Debian 11 (Bullseye)
-            os_tag: '11'
-            os_family: 'debian'
-          - os_name: Debian 12 (Bookworm)
-            os_tag: '12'
-            os_family: 'debian'
-          - os_name: Ubuntu 18.04 (Bionic)
-            os_tag: '18.04'
-            os_family: 'ubuntu'
-          - os_name: Ubuntu 20.04 (Focal)
-            os_tag: '20.04'
-            os_family: 'ubuntu'
-          - os_name: Ubuntu 22.04 (Jammy)
-            os_tag: '22.04'
-            os_family: 'ubuntu'
-          - os_name: Ubuntu 24.04 (Noble)
-            os_tag: '24.04'
-            os_family: 'ubuntu'
-
-    # Use the matrix variable to select the correct Docker container.
-    container: ${{ matrix.os_family }}:${{ matrix.os_tag }}
-    
   # 针对Ubuntu 16.04的特殊构建作业
   # 由于GitHub Actions与Ubuntu 16.04容器存在GLIBC版本不兼容问题，
   # 此作业使用Ubuntu 18.04容器但启用兼容性模式构建
@@ -239,16 +205,43 @@ jobs:
           name: nginx-package-ubuntu16.04-compat
           path: artifact/
 
+  # This job builds the NGINX binary and the ACME module for different
+  # Debian and Ubuntu versions in parallel using a matrix strategy.
+  build-packages:
+    name: Build for ${{ matrix.os_name }}
+    needs: check-for-new-version
+    if: needs.check-for-new-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.os_family }}:${{ matrix.os_tag }}
+    
+    # Define the matrix to run this job for each specified Debian and Ubuntu version.
+    strategy:
+      matrix:
+        include:
+          - os_name: Debian 11 (Bullseye)
+            os_tag: '11'
+            os_family: 'debian'
+          - os_name: Debian 12 (Bookworm)
+            os_tag: '12'
+            os_family: 'debian'
+          - os_name: Ubuntu 18.04 (Bionic)
+            os_tag: '18.04'
+            os_family: 'ubuntu'
+          - os_name: Ubuntu 20.04 (Focal)
+            os_tag: '20.04'
+            os_family: 'ubuntu'
+          - os_name: Ubuntu 22.04 (Jammy)
+            os_tag: '22.04'
+            os_family: 'ubuntu'
+    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Install Build Dependencies
         run: |
           # 为旧版Ubuntu添加必要的源配置
-          if [ "${{ matrix.os_family }}" = "ubuntu" ] && [ "${{ matrix.os_tag }}" = "16.04" ]; then
-            # Ubuntu 16.04需要添加存档源
-            sed -i 's/archive.ubuntu.com/old-releases.ubuntu.com/g' /etc/apt/sources.list
-          fi
+          echo "Building for ${{ matrix.os_family }} ${{ matrix.os_tag }} (${{ matrix.os_name }})"
           
           # 更新软件包列表
           apt-get update -y
