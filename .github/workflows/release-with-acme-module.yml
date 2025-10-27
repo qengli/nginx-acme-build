@@ -77,133 +77,9 @@ jobs:
             echo "version=$LATEST_STABLE" >> "$GITHUB_OUTPUT"
           fi
 
-  # 针对Ubuntu 16.04的特殊构建作业
-  # 由于GitHub Actions与Ubuntu 16.04容器存在GLIBC版本不兼容问题，
-  # 此作业使用Ubuntu 18.04容器但启用兼容性模式构建
-  build-ubuntu1604:
-    name: Build for Ubuntu 16.04 (Xenial) [Compatibility Mode]
-    needs: check-for-new-version
-    if: needs.check-for-new-version.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    container: ubuntu:18.04  # 使用18.04容器作为构建环境
-    
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Install Build Dependencies with Compatibility
-        run: |
-          apt-get update -y
-          # 安装兼容Ubuntu 16.04的依赖版本
-          apt-get install -y --no-install-recommends \
-            build-essential pkg-config libpcre3-dev zlib1g-dev libssl-dev \
-            libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libperl-dev \
-            wget git curl ca-certificates
-          
-      - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        
-      - name: Download and Build for Ubuntu 16.04 Compatibility
-        env:
-          NGINX_VERSION: ${{ needs.check-for-new-version.outputs.version }}
-        run: |
-          wget -q http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz
-          tar -zxf nginx-$NGINX_VERSION.tar.gz
-          git clone --depth 1 https://github.com/nginx/nginx-acme.git
-          cd nginx-$NGINX_VERSION
-
-          BUILD_PATH=$(pwd)
-          # 使用兼容旧系统的编译选项
-          CC_OPT_VALUE="-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -fPIC"
-          LD_OPT_VALUE='-Wl,-z,relro -Wl,-z,now -Wl,--as-needed -fPIC'
-
-          # 为Ubuntu 16.04配置，禁用可能不兼容的模块
-          ./configure \
-            --with-cc-opt="$CC_OPT_VALUE" \
-            --with-ld-opt="$LD_OPT_VALUE" \
-            --prefix=.. \
-            --conf-path=nginx.conf \
-            --http-log-path=logs/access.log \
-            --error-log-path=logs/error.log \
-            --lock-path=run/nginx.lock \
-            --pid-path=run/nginx.pid \
-            --modules-path=modules \
-            --http-client-body-temp-path=temp/body \
-            --http-fastcgi-temp-path=temp/fastcgi \
-            --http-proxy-temp-path=temp/proxy \
-            --http-scgi-temp-path=temp/scgi \
-            --http-uwsgi-temp-path=temp/uwsgi \
-            --with-compat \
-            --with-pcre-jit \
-            --with-http_ssl_module \
-            --with-http_stub_status_module \
-            --with-http_realip_module \
-            --with-http_auth_request_module \
-            --add-dynamic-module=../nginx-acme/
-
-          make -j$(nproc)
-          
-      - name: Package Artifacts for Ubuntu 16.04
-        env:
-          NGINX_VERSION: ${{ needs.check-for-new-version.outputs.version }}
-        run: |
-          SOURCE_DIR="nginx-$NGINX_VERSION"
-          MODULE_PATH="$SOURCE_DIR/objs/ngx_http_acme_module.so"
-          NGINX_BINARY_PATH="$SOURCE_DIR/objs/nginx"
-
-          if [ ! -f "$MODULE_PATH" ] || [ ! -f "$NGINX_BINARY_PATH" ]; then
-            echo "::error::Build failed! Required files were not created."
-            exit 1
-          fi
-
-          PACKAGE_BASE_DIR="nginx_acme"
-          mkdir -p "$PACKAGE_BASE_DIR/sbin"
-          mkdir -p "$PACKAGE_BASE_DIR/modules"
-          mkdir -p "$PACKAGE_BASE_DIR/vhost"
-          mkdir -p "$PACKAGE_BASE_DIR/acme"
-          mkdir -p "$PACKAGE_BASE_DIR/logs"
-          mkdir -p "$PACKAGE_BASE_DIR/run"
-          mkdir -p "$PACKAGE_BASE_DIR/temp/body"
-          mkdir -p "$PACKAGE_BASE_DIR/temp/proxy"
-          mkdir -p "$PACKAGE_BASE_DIR/temp/fastcgi"
-          mkdir -p "$PACKAGE_BASE_DIR/temp/scgi"
-          mkdir -p "$PACKAGE_BASE_DIR/temp/uwsgi"
-
-          cp "$NGINX_BINARY_PATH" "$PACKAGE_BASE_DIR/sbin/nginx"
-          cp "$MODULE_PATH" "$PACKAGE_BASE_DIR/modules/ngx_http_acme_module.so"
-          cp "$SOURCE_DIR/conf/mime.types" "$PACKAGE_BASE_DIR/"
-          cp conf/nginx.conf "$PACKAGE_BASE_DIR/nginx.conf"
-          cp conf/default.conf.example "$PACKAGE_BASE_DIR/vhost/default.conf.example"
-          cp nginxctl.sh "$PACKAGE_BASE_DIR/nginxctl.sh"
-
-          chmod +x "$PACKAGE_BASE_DIR/nginxctl.sh"
-
-          cat <<'EOF' > "$PACKAGE_BASE_DIR/README.txt"
-          Usage: ./nginxctl.sh {start|stop|quit|reload|test|status}
-          Commands:
-            start   - Start NGINX (tests config first)
-            stop    - Stop NGINX immediately (fast shutdown)
-            quit    - Stop NGINX gracefully
-            reload  - Reload configuration (tests config first)
-            test    - Test NGINX configuration
-            status  - Show NGINX process status
-          
-          注意: 此版本是为Ubuntu 16.04 (Xenial)特别构建的兼容版本
-          EOF
-
-          ARTIFACT_NAME="nginx-${NGINX_VERSION}-acme-ubuntu16.04-compat.tar.gz"
-          tar -czf "$ARTIFACT_NAME" "$PACKAGE_BASE_DIR"
-
-          ARTIFACT_DIR=artifact
-          mkdir -p "$ARTIFACT_DIR"
-          mv "$ARTIFACT_NAME" "$ARTIFACT_DIR/"
-          sha256sum "$ARTIFACT_DIR/$ARTIFACT_NAME" > "$ARTIFACT_DIR/$ARTIFACT_NAME.sha256"
-          
-      - name: Upload Ubuntu 16.04 Compatibility Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-package-ubuntu16.04-compat
-          path: artifact/
+  # 注意：已放弃对Ubuntu 16.04的支持
+  # 由于GitHub Actions与Ubuntu 16.04容器存在GLIBC版本严重不兼容问题，
+  # 从现在开始仅支持Ubuntu 18.04、20.04和22.04版本
 
   # This job builds the NGINX binary and the ACME module for different
   # Debian and Ubuntu versions in parallel using a matrix strategy.
@@ -248,9 +124,9 @@ jobs:
           
           # 根据不同版本选择合适的PCRE库
           PCRE_PACKAGE="libpcre2-dev"
-          if [ "${{ matrix.os_tag }}" = "16.04" ] || [ "${{ matrix.os_tag }}" = "18.04" ]; then
-            PCRE_PACKAGE="libpcre3-dev"
-          fi
+          # if [ "${{ matrix.os_tag }}" = "18.04" ]; then
+          #   PCRE_PACKAGE="libpcre3-dev"
+          # fi
           
           # 安装构建依赖
           apt-get install -y --no-install-recommends \
@@ -292,8 +168,8 @@ jobs:
           # 根据不同的系统版本设置编译选项
           CC_OPT_VALUE="-g -O2 -ffile-prefix-map=$BUILD_PATH=. -fstack-protector-strong -Wformat -Werror=format-security -fPIC"
           
-          # 旧版Ubuntu不支持某些编译选项
-          if [ "${OS_TAG}" = "16.04" ] || [ "${OS_TAG}" = "18.04" ]; then
+          # Ubuntu 18.04不支持某些编译选项
+          if [ "${OS_TAG}" = "18.04" ]; then
             CC_OPT_VALUE="-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -fPIC"
           fi
           
@@ -325,13 +201,13 @@ jobs:
             --add-dynamic-module=../nginx-acme/
           )
           
-          # HTTP/2模块在较旧版本中可能存在兼容性问题
-          if [ "${OS_TAG}" != "16.04" ]; then
+          # 所有支持的版本都启用HTTP/2模块
+          if [ true ]; then
             CONFIGURE_OPTS+=( --with-http_v2_module )
           fi
           
-          # 只有较新版本才启用调试选项
-          if [ "${OS_TAG}" != "16.04" ] && [ "${OS_TAG}" != "18.04" ]; then
+          # 除了Ubuntu 18.04外，其他版本启用调试选项
+          if [ "${OS_TAG}" != "18.04" ]; then
             CONFIGURE_OPTS+=( --with-debug )
           fi
           
@@ -418,7 +294,7 @@ jobs:
   # all the generated packages and publishes them to a single GitHub Release.
   create-release:
     name: Create GitHub Release
-    needs: [check-for-new-version, build-packages, build-ubuntu1604]
+    needs: [check-for-new-version, build-packages]
     if: needs.check-for-new-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
