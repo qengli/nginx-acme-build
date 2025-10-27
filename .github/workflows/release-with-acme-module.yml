@@ -117,27 +117,27 @@ jobs:
           echo "Building for ${{ matrix.os_family }} ${{ matrix.os_tag }} (${{ matrix.os_name }})"
           
           # 更新软件包列表
-          apt-get update -y
+          DEBIAN_FRONTEND=noninteractive apt-get update -y
           
           # 根据不同版本选择合适的PCRE库
           PCRE_PACKAGE="libpcre2-dev"
-          # if [ "${{ matrix.os_tag }}" = "18.04" ]; then
-          #   PCRE_PACKAGE="libpcre3-dev"
-          # fi
+          if [ "${{ matrix.os_tag }}" = "18.04" ]; then
+            PCRE_PACKAGE="libpcre3-dev"
+          fi
           
-          # 安装构建依赖
-          apt-get install -y --no-install-recommends \
-            build-essential pkg-config ${PCRE_PACKAGE} zlib1g-dev libssl-dev \
-            libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libperl-dev \
-            wget git curl ca-certificates
+          # 安装构建依赖（使用非交互式模式避免时区配置等交互问题）
+          DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none TZ=UTC apt-get install -y --no-install-recommends \
+              build-essential pkg-config ${PCRE_PACKAGE} zlib1g-dev libssl-dev \
+              libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libperl-dev \
+              wget git curl ca-certificates
           
-          # 安装jq（某些旧版可能需要从backports获取）
-          if ! apt-get install -y jq; then
+          # 安装jq用于处理JSON（使用非交互式模式）
+          if ! DEBIAN_FRONTEND=noninteractive apt-get install -y jq; then
             echo "Failed to install jq from main repository, trying alternative method..."
             if [ -f /usr/bin/apt-add-repository ]; then
-              apt-add-repository universe -y
-              apt-get update -y
-              apt-get install -y jq || true
+              DEBIAN_FRONTEND=noninteractive apt-add-repository universe -y
+              DEBIAN_FRONTEND=noninteractive apt-get update -y
+              DEBIAN_FRONTEND=noninteractive apt-get install -y jq || true
             fi
           fi
           
